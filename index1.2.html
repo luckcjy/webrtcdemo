@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+</head>
+
+<body>
+    <button id="sendV"> 发起视频</button>
+    <button id="getV"> 观看视频</button>
+
+    <video id="showV" autoplay controls style="height: 500px;width: 500px"></video>
+
+</body>
+<script src="./js/socket.io.js"></script>
+
+<script>
+    let showV = document.querySelector("#showV")
+    let sendV = document.querySelector("#sendV")
+    let getV = document.querySelector("#getV")
+    const socket = io('ws://127.0.0.1:4567')
+    var iceServer = { //RTCPeerConnection的配置参数
+        "iceServers": [{
+            "url": "stun:stun.l.google.com:19302"   // 局域网使用不需要
+        }]
+    };
+
+    sendV.addEventListener("click", () => {
+
+        navigator.getUserMedia({
+                video: false,
+                audio: true
+            },
+            
+            stream => {
+                var localConnection //本地连接
+                console.log("本地的stream", stream)
+                showV.srcObject = stream // 把本地的视频流传输给本地的videa标签播放
+
+                localConnection = new RTCPeerConnection(iceServer) //用于允许对象在不同浏览器通讯
+                localConnection.addStream(stream)                  //把本地的流添加进传输列表
+
+                localConnection.createOffer().then(offer => { //即SDP 数据 
+                    console.log("offer",offer)
+                    localConnection.setLocalDescription(offer)
+                        .then(sendOffer(offer))               //发出offer
+                })
+
+                
+                
+                socket.on("Answer", data => {              //收到回复,成功建立连接,完整的webrtc流程走通
+                    console.log(3)
+                    let desc = new RTCSessionDescription(data)
+                    localConnection.setRemoteDescription(desc).then(() => {
+                        console.log('Peer Connection Success')
+                    })
+                    localConnection.onicecandidate = function (e) { //寻找合适的ICE （交互连接）,并把信令发送出去
+                    console.log(e.candidate)
+                    if (e.candidate) {
+                        sendCandidate({
+                            "data": e.candidate,              
+                            "id": "send"
+                        }) //发出
+                    }
+                }
+                })
+                socket.on("sendcandidate", data => {                //接收到clientb发出的信令
+                    console.log(4,data)
+                    localConnection.addIceCandidate(new RTCIceCandidate(data))
+                })
+
+            },
+            (err) => {
+                console.log("stream错误", err)
+            }
+            )
+    })
+
+    getV.addEventListener("click", () => {
+        socket.emit("getdata", data => {
+            console.log("已经触发")                             //通知后台把对应的信令发送给前端
+        })
+        remoteConnection = new RTCPeerConnection(iceServer)     //clientb 的连接对象
+
+        socket.on("Offer", data => {                            //收到offer 发出answer
+            let desc = new RTCSessionDescription(data)
+            remoteConnection.setRemoteDescription(desc)
+                .then(function () {
+                    remoteConnection.createAnswer()
+                        .then((answer) => {
+                            remoteConnection.setLocalDescription(answer)
+                                .then(sendAnswer(answer))
+                        })
+                })
+        })
+
+        socket.on("candidate", data => {                      //接受到clienta 发送的信令添加到本地
+            remoteConnection.addIceCandidate(new RTCIceCandidate(data)) 
+            
+            remoteConnection.onicecandidate = function (e) {      //寻找合适的ICE （交互连接）,并把信令发送出去
+            if (e.candidate) {
+                sendCandidate({
+                    "data": e.candidate,
+                    "id": "get"
+                })
+            }
+        } 
+        })
+
+        remoteConnection.onaddstream = function (e) {           //监听是否有流传进来,并把流给video标签播放
+            console.log("对方发出的流", e.stream)
+            showV.srcObject = e.stream
+        }
+       
+
+    })
+
+
+    //发出通知
+    function sendOffer(data) {
+        console.log("offer2",data)
+        socket.emit('sendOffer', data)
+        console.log('offer 已发出')
+    }
+    //发出回复
+    function sendAnswer(data) {
+        console.log('answer 已发出')
+        socket.emit('sendAnswer', data)
+    }
+    //发出ice信息
+    function sendCandidate(data) {
+        socket.emit('sendCandidate', data)
+        console.log('candidate 已发出')
+    }
+</script>
+
+</html>

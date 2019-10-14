@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GetUserMedia实例</title>
+</head>
+
+<body>
+    <h1>主界面</h1>
+    <video autoplay controls id="check"></video>
+    <button id="start"> 开始发声</button>
+    <hr>
+    <video autoplay controls id="showA"></video>
+    <button type="button" id="getv">接受声音</button>
+    <img src="" alt="" id="viewBox">
+
+</body>
+
+
+
+
+<script src="./js/socket.io.js"></script>
+
+<script type="text/javascript">
+    let flag = true
+    // const socket = io('ws://127.0.0.1:4567')
+
+    //    const socket=new WebSocket("ws://192.168.137.1:4567")
+    // console.log(socket)
+
+    document.querySelector("#start").addEventListener("click", videoStream)
+    document.querySelector("#getv").addEventListener("click", getStream)
+    async function videoStream() {
+        navigator.getUserMedia({
+            video: false,
+            audio: true
+        }, stream => {
+            let video = document.querySelector('#check')
+            console.log(video.src)
+
+            localStream = stream
+            video.srcObject = localStream
+            console.log(video.srcObject)
+            // socket.binaryType = 'arraybuffer';
+            if (window.MediaSource) {
+                let mediaRecorder = new MediaRecorder(localStream);
+                // alert(mediaRecorder)
+                mediaRecorder.ondataavailable = function (blob) {
+                    console.log("blobdata", blob)
+                    var data = blob.data
+                    getStream(blob.data)
+                    // socket.emit("sendStream", data)
+                    // var sourceBuffer = window.mediaSource.addSourceBuffer(blob.data);
+                }
+                mediaRecorder.start(1000)
+            } else {
+                console.log(1)
+            }
+        }, err => {
+            console.log(err)
+        })
+        // let localStream = await navigator.mediaDevices.getUserMedia({
+        //     video: true,
+        //     Audio: false
+        // })
+
+        //     let video = document.querySelector('video')
+
+        //     video.srcObject = localStream
+        //   if (window.MediaSource) {
+        //     let mediaRecorder = new MediaRecorder(localStream);
+        //     alert(mediaRecorder)
+        //     mediaRecorder.ondataavailable = function (blob) {
+        //         console.log(blob.data)
+        //         var sourceBuffer = mediaSource.addSourceBuffer(blob.data);
+
+        //     }
+        //     mediaRecorder.start(1000)
+        //   }else{
+        //       alert(1)
+        //   }
+    }
+
+    var mime = 'audio/webm;codecs=opus'  //音频格式
+
+    window.BFarr = [] //用来存储返回的arraybuffer
+
+    let showA = document.querySelector("#showA")
+
+    var mediaSource = new MediaSource
+
+    showA.src = URL.createObjectURL(mediaSource)
+    mediaSource.addEventListener("sourceopen", sourceOpen)
+    mediaSource.addEventListener("sourceclose", sourceClose)
+    console.log(showA.src)
+    function getStream(data) {
+        // socket.emit("sendData", flag)
+        console.log(1111)
+
+
+        function sourceClose() {
+            console.log("连接中断")
+        }
+        function sourceOpen(e) {
+
+            console.log(1, this.readyState); // open
+            // var mime = 'video/webm; codecs="opus, vp9"';
+            // var mime = 'video/mp4 ; codecs ="avc1.64001E"'
+            URL.revokeObjectURL(showA.src);
+            // debugger
+            window.mediaSource = this;
+            window.sourceBuffer = mediaSource.addSourceBuffer(mime);
+            sourceBuffer.mode = 'sequence';  //按序播放
+            // socket.on("returnStream", data => {
+            console.log(2, mediaSource.readyState); // open
+            // mediaSource.readyState = open
+            BFarr.push(data)
+            console.log("里", BFarr)
+
+            sourceBuffer.addEventListener('updateend', function (_) {
+                console.log(showA.src)
+                mediaSource.endOfStream();
+                showA.play();
+            });
+            sourceBuffer.appendBuffer(window.BFarr.shift());
+            // });
+        };
+
+
+        // setInterval(() => {
+        //     if (window.BFarr.length > 0) {
+        //         console.log("外", mediaSource.readyState)
+        //         let a = sourceBuffer.appendBuffer(window.BFarr.shift());
+
+        //         console.log("列表1",mediaSource.sourceBuffers) 
+
+        //         setTimeout(() => {
+        //            console.log("列表1",mediaSource.sourceBuffers) 
+
+        //             console.log("外2", mediaSource.readyState)
+
+        //         }, 500);
+
+        //     }
+        // }, 500)
+
+    }
+
+
+
+    // var vidElement = document.querySelector('video');
+
+    // if (window.MediaSource) {
+    //     var mediaSource = new MediaSource();
+    //     vidElement.src = URL.createObjectURL(mediaSource);
+    //     mediaSource.addEventListener('sourceopen', sourceOpen);
+    // } else {
+    //     console.log("The Media Source Extensions API is not supported.")
+    // }
+
+    // function sourceOpen(e) {
+    //     URL.revokeObjectURL(vidElement.src);
+    //     var mime = 'video/webm; codecs="opus, vp9"';
+    //     var mediaSource = e.target;
+    //     var sourceBuffer = mediaSource.addSourceBuffer(mime);
+    //     var videoUrl = 'droid.webm';
+    //     fetch(videoUrl)
+    //         .then(function (response) {
+    //             return response.arrayBuffer();
+    //         })
+    //         .then(function (arrayBuffer) {
+    //             sourceBuffer.addEventListener('updateend', function (e) {
+    //                 if (!sourceBuffer.updating && mediaSource.readyState === 'open') {
+    //                     mediaSource.endOfStream();
+    //                 }
+    //             });
+    //             sourceBuffer.appendBuffer(arrayBuffer);
+    //         });
+    // }
+
+
+
+
+</script>
+
+</html>
